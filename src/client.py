@@ -2,19 +2,7 @@ import threading, queue, random, time
 import signal, sys, os, socket
 import libvirt
 
-# Configs
-DELAY_CONFIG = {
-    1: ("Low", 0.5),
-    2: ("Medium", 0.1),
-    3: ("High", 0.03),
-    4: ("Very High", 0.001)
-}
-
-def clearConsole():
-    command = 'clear'
-    if os.name in ('nt', 'dos'):  # If Machine is running on Windows, use cls
-        command = 'cls'
-    os.system(command)
+from extra_utils import DELAY_CONFIG, clearConsole, signal_handler
 
 # Checks for the VMs and update if required
 def checkNewVMs(old_connection_count=0, initial=False):
@@ -94,7 +82,7 @@ def sendRequests(speed_queue):
             pass
 
         # Send request to connection, and update index to next VM
-        if conn_index != 0:
+        if len(conn_addrs) != 0:
             s.sendto(str(random.randint(200, 500)).encode(), conn_addrs[conn_index])
             conn_index = (conn_index + 1) % len(conn_addrs)
         update_conns_interval += 1
@@ -105,10 +93,6 @@ def sendRequests(speed_queue):
             update_conns_interval = 0
             conn_addrs = updateConnections(conn_addrs)
 
-def signal_handler(sig, frame):
-    clearConsole()
-    print("Client has been Terminated.")
-    sys.exit(0)
 
 if __name__ == "__main__":
     clearConsole()
@@ -131,4 +115,7 @@ if __name__ == "__main__":
     while 1:
         pick_delay, addr = s.recvfrom(1024)
         pick_delay = int(pick_delay.decode())
-        speed_queue.put(DELAY_CONFIG[pick_delay])
+        try:
+            speed_queue.put(DELAY_CONFIG[pick_delay])
+        except IndexError:
+            pass
