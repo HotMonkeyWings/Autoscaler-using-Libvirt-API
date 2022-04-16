@@ -2,31 +2,7 @@ import threading, queue, random, time
 import signal, sys, os, socket
 import libvirt
 
-from extra_utils import DELAY_CONFIG, clearConsole, signal_handler
-
-# Checks for the VMs and update if required
-def checkNewVMs(old_connection_count=0, initial=False):
-    conn = None
-    try:
-        conn = libvirt.open("qemu:///system")
-    except libvirt.libvirtError as e:
-        print(repr(e), file=sys.stderr)
-        exit(1)
-
-    doms = conn.listAllDomains(libvirt.VIR_CONNECT_LIST_DOMAINS_ACTIVE)
-
-    # No new VMs. Proceed with old set.
-    if len(doms) == old_connection_count:
-        return None
-
-    # New VMs were spawned, wait for startup.
-    elif not initial and len(doms) > old_connection_count:
-        print("New VMs started. Sleeping for 30 seconds...")
-        time.sleep(30)
-        print("Requests have resumed!")
-
-    conn.close()
-    return doms
+from extra_utils import DELAY_CONFIG, clearConsole, signal_handler, checkNewVMs
 
 # Obtain the IPs of domains.
 def getDomainIPs(doms):
@@ -71,15 +47,20 @@ def sendRequests(speed_queue):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     while 1:
-        clearConsole()
-        print("[CTRL + C] to Terminate.\n\n")
-        print("Number of VMs:", len(conn_addrs))
-        print("Load Frequency:", freq)
         # Update the delay if it was changed
         try:
             freq, delay = speed_queue.get_nowait()
         except queue.Empty:
             pass
+
+        # Update connection list every 1 second
+        if update_conns_interval >= int(1/delay):
+            update_conns_interval = 0
+            conn_addrs = updateConnections(conn_addrs)
+            clearConsole()
+            print("[CTRL + C] to Terminate.\n\n")
+            print("Number of VMs:", len(conn_addrs))
+            print("Load Frequency:", freq)
 
         # Send request to connection, and update index to next VM
         if len(conn_addrs) != 0:
@@ -88,10 +69,6 @@ def sendRequests(speed_queue):
         update_conns_interval += 1
         time.sleep(delay)
 
-        # Update connection list every 1 second
-        if update_conns_interval >= int(1/delay):
-            update_conns_interval = 0
-            conn_addrs = updateConnections(conn_addrs)
 
 
 if __name__ == "__main__":
