@@ -4,10 +4,17 @@
 # 3. Algorithm to spawn new VM
 import libvirt
 import time
+import threading
 import signal
 
-from extra_utils import checkNewVMs, clearConsole, signal_handler
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+from extra_utils import DynamicGraph, checkNewVMs, clearConsole, signal_handler
 from configs import LOAD_CONFIG
+
+CPU_USAGE_HISTORY = {}
+FRAME_LEN = 30
 
 # Spawn a new VM if available.
 def spawnVM():
@@ -28,7 +35,12 @@ def spawnVM():
     print("New VM:", inactiveDoms[0].name(), "has been booted up.")
     print("Waiting for VM to start. Sleeping for 30 seconds...")
     inactiveDoms[0].create()
-    time.sleep(25)
+    for i in range(25):
+        for name in CPU_USAGE_HISTORY:
+            CPU_USAGE_HISTORY[name].append(0)
+        plt.gcf().canvas.draw_idle()
+        plt.gcf().canvas.start_event_loop(0.05)
+        time.sleep(1)
     conn.close()
     return True
 
@@ -50,7 +62,7 @@ def reportCPUUsage():
 
     # Initialize variables
     delay = 1.5 / len(doms)
-    cpu_usages = []
+    cpu_usages = {}
 
     # Iter through all VMs
     for dom in doms:
@@ -65,17 +77,48 @@ def reportCPUUsage():
         # Calculate CPU Percent from CPU Clock Times
         cpu_percent = 100 * ((cpu_stat_2['cpu_time'] - cpu_stat_1['cpu_time']) / (delay * 10**9)) 
         cpu_percent = 100 if cpu_percent > 100 else cpu_percent
-        cpu_usages.append(round(cpu_percent/len(dom.vcpus()[0]), 2))
+        cpu_usages[dom.name()] = (round(cpu_percent/len(dom.vcpus()[0]), 2))
 
     conn.close()
     return cpu_usages, len(cpu_usages)
+
+def updateGraph(cpu_usages):
+    global CPU_USAGE_HISTORY
+    for name in cpu_usages:
+        if name not in CPU_USAGE_HISTORY:
+            CPU_USAGE_HISTORY[name] = [] 
+            if CPU_USAGE_HISTORY:
+                CPU_USAGE_HISTORY[name] = [0] * len(max(CPU_USAGE_HISTORY.values()))
+
+        CPU_USAGE_HISTORY[name].append(cpu_usages[name])
+
+def animateGraph(i):
+    plt.cla()
+    for name in CPU_USAGE_HISTORY:
+        if len(CPU_USAGE_HISTORY[name]) <= FRAME_LEN:
+            plt.plot(CPU_USAGE_HISTORY[name], label=f"{name} CPU Usage")
+        else:
+            plt.plot(CPU_USAGE_HISTORY[name][-FRAME_LEN:], label=f"{name} CPU Usage")
+
+    plt.ylim(0, 100)
+    plt.xlim(0, 30)
+    plt.xlabel('Time (s)')
+    plt.ylabel('CPU Usage (%)')
+    plt.legend(loc = 'upper right')
+    plt.tight_layout()
+
 
 def autoscaler():
     # load_map determines scale up
     load_map = [1] * 5
     load_map_index = 0
+    cpu_usages = {}
+
+    ani = FuncAnimation(plt.gcf(), animateGraph, interval = 1000)
+    plt.show(block=False)
     
     while 1:
+        # plt.pause(0.05)
         cpu_usages, vmcount = reportCPUUsage()
         if vmcount == 0:
             clearConsole()
@@ -83,6 +126,9 @@ def autoscaler():
             spawnVM()
             continue
 
+        updateGraph(cpu_usages)
+        plt.gcf().canvas.draw_idle()
+        plt.gcf().canvas.start_event_loop(0.05)
         # If new VMs, restart
         if checkNewVMs(vmcount):
             continue
@@ -90,9 +136,9 @@ def autoscaler():
         # Display CPU Usages
         clearConsole()
         print('[CTRL + C] to Terminate.\n\n')
-        for i, cpu in enumerate(cpu_usages):
-            print(f"VM {i+1}: {cpu}%")
-        cpu_usage = round(sum(cpu_usages)/len(cpu_usages), 2)
+        for name in cpu_usages:
+            print(f"{name}: {cpu_usages[name]}%")
+        cpu_usage = round(sum(cpu_usages.values())/len(cpu_usages.values()), 2)
         print(f"\nAverage CPU Usage: {cpu_usage}%")
 
         # Adjust load map depending on CPU usage
