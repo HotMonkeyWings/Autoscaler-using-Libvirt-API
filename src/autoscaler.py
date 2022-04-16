@@ -25,8 +25,10 @@ def spawnVM():
         print("No more VMs available!")
         return False
 
+    print("New VM:", inactiveDoms[0].name(), "has been booted up.")
+    print("Waiting for VM to start. Sleeping for 30 seconds...")
     inactiveDoms[0].create()
-    print("New VM:", inactiveDoms[0].name(), "has been started.")
+    time.sleep(25)
     conn.close()
     return True
 
@@ -75,6 +77,11 @@ def autoscaler():
     
     while 1:
         cpu_usages, vmcount = reportCPUUsage()
+        if vmcount == 0:
+            clearConsole()
+            print('No VMs online.')
+            spawnVM()
+            continue
 
         # If new VMs, restart
         if checkNewVMs(vmcount):
@@ -102,9 +109,8 @@ def autoscaler():
             print("CPU load at maximum. Spawning new VM.")
             if not spawnVM():
                 continue
-            time.sleep(30)
             print("Load Balancer has resumed.")
-            print("Waiting for VM to start. Sleeping for 30 seconds.")
+            time.sleep(1)
             load_map = [1] * 5
     
         print(load_map)

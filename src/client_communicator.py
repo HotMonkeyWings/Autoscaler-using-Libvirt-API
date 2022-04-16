@@ -1,6 +1,7 @@
 import socket, signal
 
-from extra_utils import clearConsole, signal_handler, DELAY_CONFIG
+from extra_utils import clearConsole, signal_handler
+from configs import DELAY_CONFIG
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
