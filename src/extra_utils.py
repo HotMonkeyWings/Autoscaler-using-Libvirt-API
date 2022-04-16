@@ -1,20 +1,14 @@
 import os, sys, time
 import libvirt
 
-# Configs
-DELAY_CONFIG = {
-    1: ("Low", 0.5),
-    2: ("Medium", 0.07),
-    3: ("High", 0.035),
-    4: ("Very High", 0.001)
-}
-
+# Simple command caller to clear the terminal
 def clearConsole():
     command = 'clear'
     if os.name in ('nt', 'dos'):  # If Machine is running on Windows, use cls
         command = 'cls'
     os.system(command)
 
+# Deals with system interrupts
 def signal_handler(sig, frame):
     clearConsole()
     print("Program has been Terminated.")

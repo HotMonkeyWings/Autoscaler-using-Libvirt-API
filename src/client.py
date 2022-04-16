@@ -2,7 +2,8 @@ import threading, queue, random, time
 import signal, sys, os, socket
 import libvirt
 
-from extra_utils import DELAY_CONFIG, clearConsole, signal_handler, checkNewVMs
+from extra_utils import clearConsole, signal_handler, checkNewVMs
+from configs import DELAY_CONFIG
 
 # Obtain the IPs of domains.
 def getDomainIPs(doms):
