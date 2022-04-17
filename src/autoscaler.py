@@ -91,6 +91,9 @@ def updateGraph(cpu_usages):
                 CPU_USAGE_HISTORY[name] = [0] * len(max(CPU_USAGE_HISTORY.values()))
 
         CPU_USAGE_HISTORY[name].append(cpu_usages[name])
+    
+    plt.gcf().canvas.draw_idle()
+    plt.gcf().canvas.start_event_loop(0.05)
 
 def animateGraph(i):
     plt.cla()
@@ -126,9 +129,9 @@ def autoscaler():
             spawnVM()
             continue
 
+        # Update the graph
         updateGraph(cpu_usages)
-        plt.gcf().canvas.draw_idle()
-        plt.gcf().canvas.start_event_loop(0.05)
+
         # If new VMs, restart
         if checkNewVMs(vmcount):
             continue
@@ -137,6 +140,7 @@ def autoscaler():
         clearConsole()
         print('[CTRL + C] to Terminate.\n\n')
         for name in cpu_usages:
+            cpu_usages[name] = 100 if cpu_usages[name] > 100 else cpu_usages[name]
             print(f"{name}: {cpu_usages[name]}%")
         cpu_usage = round(sum(cpu_usages.values())/len(cpu_usages.values()), 2)
         print(f"\nAverage CPU Usage: {cpu_usage}%")
