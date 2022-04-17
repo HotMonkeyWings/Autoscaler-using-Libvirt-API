@@ -2,8 +2,8 @@
 DELAY_CONFIG = {
     1: ("Low", 0.8),
     2: ("Medium", 0.01),
-    3: ("High", 0.0001),
-    4: ("Very High", 0.001)
+    3: ("High", 0.0005),
+    4: ("Very High", 0.005)
 }
 
 # Threshold values to control VM spawn

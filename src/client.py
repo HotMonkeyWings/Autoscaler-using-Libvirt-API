@@ -1,4 +1,4 @@
-import threading, queue, random, time
+import threading, queue, random, time, multiprocessing
 import signal, sys, os, socket
 import libvirt
 import matplotlib.pyplot as plt
@@ -9,6 +9,7 @@ from configs import DELAY_CONFIG
 
 AVG_LATENCY = []
 FRAME_LEN = 10
+VM_THREADS = {}
 
 # Obtain the IPs of domains.
 def getDomainIPs(doms):
@@ -32,6 +33,18 @@ def updateConnections(conn_addrs, initial=False):
         return conn_addrs
 
     new_connections = []
+    
+    # Shut down old threads
+    for name in VM_THREADS:
+        for proc in VM_THREADS[name]:
+            proc.terminate()
+
+    for dom in newVMs:
+        VM_THREADS[dom] = []
+        for i in range(5):
+            proc = multiprocessing.Process(target=latencyCalculator, args=(s, dom))
+            proc.start()
+            VM_THREADS[dom].append(proc)
 
     # Get new sockets
     ip_addrs = getDomainIPs(newVMs)
@@ -68,7 +81,7 @@ def sendRequests(speed_queue, s):
         # Update connection list every 1 second
         if time.time() - startTime >= 1:
             startTime = time.time()
-            conn_addrs = updateConnections(conn_addrs)
+            conn_addrs = updateConnections(conn_addrs, s)
             clearConsole()
             print("[CTRL + C] to Terminate.\n\n")
             print("Number of VMs:", len(conn_addrs))
@@ -83,8 +96,9 @@ def sendRequests(speed_queue, s):
 
         # Send request to connection, and update index to next VM
         if len(conn_addrs) != 0:
-            msg = str(random.randint(200, 500)) + " " + str(time.time())
-            s.sendto(msg.encode(), conn_addrs[conn_index])
+            msg_list = [str(random.randint(200, 500)) + " " + str(time.time()) for i in range(200)]
+            for msg in msg_list:
+                s.sendto(msg.encode(), conn_addrs[conn_index])
             conn_index = (conn_index + 1) % len(conn_addrs)
         update_conns_interval += 1
         time.sleep(delay)
@@ -92,7 +106,6 @@ def sendRequests(speed_queue, s):
 
 def animateGraph(i):
     plt.cla()
-    print(i)
     if len(AVG_LATENCY) <= FRAME_LEN:
         plt.plot(AVG_LATENCY, label=f"Average Latency")
     else:
@@ -118,19 +131,32 @@ def speedController():
         except IndexError:
             pass
 
-def latencyCalculator(s):
+def latencyCalculator(s, dom):
+    global AVG_LATENCY
     startTime = time.time()
     latency = []
     while 1:
+        if dom.isActive() == 0:
+            return
         if time.time() - startTime >= 1:
             startTime = time.time()
             AVG_LATENCY.append(sum(latency)/len(latency))
+            print(latency)
             latency = []
         msg, addr = s.recvfrom(1024)
         msg = msg.decode()
         oldTime = float(msg.split()[-1])
         latency.append((time.time()-oldTime) * 1000)
 
+
+# Deals with system interrupts
+def signal_handler(sig, frame):
+    for name in VM_THREADS:
+        for proc in VM_THREADS[name]:
+            proc.terminate()
+    clearConsole()
+    print("Program has been Terminated.")
+    sys.exit(0)
 
 if __name__ == "__main__":
     clearConsole()
@@ -153,9 +179,9 @@ if __name__ == "__main__":
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.bind(('', 9000))
 
-    latencyCalculatorThread = threading.Thread(target=latencyCalculator, args=(s,), name='Latency Calculator')
-    latencyCalculatorThread.daemon = True
-    latencyCalculatorThread.start()
+    # latencyCalculatorThread = threading.Thread(target=latencyCalculator, args=(s,), name='Latency Calculator')
+    # latencyCalculatorThread.daemon = True
+    # latencyCalculatorThread.start()
 
     sendRequests(speed_queue, s)
     # Start socket for updating the delay
