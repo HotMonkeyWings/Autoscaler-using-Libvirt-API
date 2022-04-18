@@ -1,7 +1,3 @@
-# TODO:
-# 1. Spawn VMs
-# 2. Report CPU Usage
-# 3. Algorithm to spawn new VM
 import libvirt
 import time
 import threading
@@ -10,7 +6,7 @@ import signal
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-from extra_utils import DynamicGraph, checkNewVMs, clearConsole, signal_handler
+from extra_utils import checkNewVMs, clearConsole, signal_handler
 from configs import LOAD_CONFIG
 
 CPU_USAGE_HISTORY = {}

@@ -2,38 +2,6 @@ import os, sys, time
 import libvirt
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-
-class DynamicGraph:
-    def __init__(self):
-        self.y = {}
-        self.frame_len = 30
-        self.fig = plt.figure(figsize=(6, 2))
-    
-    def update(self, cpu_usages):
-        for name in cpu_usages:
-            if name not in self.y:
-                self.y[name] = []
-            self.y[name].append(cpu_usages[name])
-        
-    def plotGraph(self, i):
-        plt.cla()
-        for name in self.y:
-            if len(self.y[name]) > self.frame_len:
-                plt.plot(y[name][-self.frame_len:], label=name+" CPU Usage")
-            else:
-                plt.plot(y[name], label=name+" CPU Usage")
-
-        plt.ylim(0, 100)
-        plt.xlim(0, 30)
-        plt.xlabel('Time (s)')
-        plt.ylabel('CPU Usage (%)')
-        plt.legend(loc = 'upper right')
-        plt.tight_layout()
-
-    def startGraph(self):
-        ani = FuncAnimation(plt.gcf(), self.plotGraph, interval = 1000)
-        plt.show()
-
 # Simple command caller to clear the terminal
 def clearConsole():
     command = 'clear'
