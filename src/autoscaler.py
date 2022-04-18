@@ -179,7 +179,6 @@ def autoscaler():
 
 
 if __name__ == "__main__":
-    # spawnVM()
     clearConsole()
     print("Starting Auto Scaler...")
     signal.signal(signal.SIGINT, signal_handler)
