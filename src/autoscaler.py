@@ -1,7 +1,3 @@
-# TODO:
-# 1. Spawn VMs
-# 2. Report CPU Usage
-# 3. Algorithm to spawn new VM
 import libvirt
 import time
 import threading
@@ -10,7 +6,7 @@ import signal
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-from extra_utils import DynamicGraph, checkNewVMs, clearConsole, signal_handler
+from extra_utils import checkNewVMs, clearConsole, signal_handler
 from configs import LOAD_CONFIG
 
 CPU_USAGE_HISTORY = {}
@@ -25,22 +21,30 @@ def spawnVM():
         print(repr(e), file=sys.stderr)
         exit(1)
 
+    # Obtain all inactive VMs
     inactiveDoms = conn.listAllDomains(libvirt.VIR_CONNECT_GET_ALL_DOMAINS_STATS_INACTIVE)
     inactiveDoms.sort(key=lambda dom: dom.name())
 
+    # If none, return False
     if not inactiveDoms:
         print("No more VMs available!")
         return False
 
+
     print("New VM:", inactiveDoms[0].name(), "has been booted up.")
     print("Waiting for VM to start. Sleeping for 30 seconds...")
+
+    # Start the VM
     inactiveDoms[0].create()
-    for i in range(25):
-        for name in CPU_USAGE_HISTORY:
-            CPU_USAGE_HISTORY[name].append(0)
-        plt.gcf().canvas.draw_idle()
-        plt.gcf().canvas.start_event_loop(0.05)
-        time.sleep(1)
+
+    # Report CPU Usage till VM boots up.
+    # Here, we use 20 assuming few assumptions instead of 30 seconds
+    for i in range(20):
+        cpu_usages, vmcount = reportCPUUsage()
+
+        # Update the graph
+        updateGraph(cpu_usages)
+
     conn.close()
     return True
 
@@ -82,6 +86,7 @@ def reportCPUUsage():
     conn.close()
     return cpu_usages, len(cpu_usages)
 
+# Update the graph with new CPU Usage values
 def updateGraph(cpu_usages):
     global CPU_USAGE_HISTORY
     for name in cpu_usages:
@@ -91,15 +96,23 @@ def updateGraph(cpu_usages):
                 CPU_USAGE_HISTORY[name] = [0] * len(max(CPU_USAGE_HISTORY.values()))
 
         CPU_USAGE_HISTORY[name].append(cpu_usages[name])
+    
+    # Plot updated values
+    plt.gcf().canvas.draw_idle()
+    plt.gcf().canvas.start_event_loop(0.05)
 
+# Generic function to animate the graph
 def animateGraph(i):
-    plt.cla()
+    plt.cla()       # Clear the graph
+
+    # Get all VM values
     for name in CPU_USAGE_HISTORY:
         if len(CPU_USAGE_HISTORY[name]) <= FRAME_LEN:
             plt.plot(CPU_USAGE_HISTORY[name], label=f"{name} CPU Usage")
         else:
             plt.plot(CPU_USAGE_HISTORY[name][-FRAME_LEN:], label=f"{name} CPU Usage")
 
+    # Plot configurations
     plt.ylim(0, 100)
     plt.xlim(0, 30)
     plt.xlabel('Time (s)')
@@ -126,9 +139,9 @@ def autoscaler():
             spawnVM()
             continue
 
+        # Update the graph
         updateGraph(cpu_usages)
-        plt.gcf().canvas.draw_idle()
-        plt.gcf().canvas.start_event_loop(0.05)
+
         # If new VMs, restart
         if checkNewVMs(vmcount):
             continue
@@ -137,6 +150,7 @@ def autoscaler():
         clearConsole()
         print('[CTRL + C] to Terminate.\n\n')
         for name in cpu_usages:
+            cpu_usages[name] = 100 if cpu_usages[name] > 100 else cpu_usages[name]
             print(f"{name}: {cpu_usages[name]}%")
         cpu_usage = round(sum(cpu_usages.values())/len(cpu_usages.values()), 2)
         print(f"\nAverage CPU Usage: {cpu_usage}%")
